@@ -12,6 +12,27 @@ const mapPoints = [
   { id: 'drone', lon: 121.32, lat: 37.12, label: 'DJI M350-03', detail: '无人机 · 待命', color: '#53d7ff', size: 11 }
 ];
 
+function diffusionSnapshot(hour = 0) {
+  const progress = Math.max(0, Math.min(24, Number(hour) || 0)) / 24;
+  const centerLon = 119.30 + progress * 0.52;
+  const centerLat = 38.96 - progress * 0.31;
+  const length = 0.34 + progress * 0.78;
+  const width = 0.18 + progress * 0.34;
+  const polygon = [
+    [centerLon - length * 0.66, centerLat + width * 0.28],
+    [centerLon + length * 0.42, centerLat + width * 0.36],
+    [centerLon + length * 0.62, centerLat - width * 0.08],
+    [centerLon - length * 0.10, centerLat - width * 0.72],
+    [centerLon - length * 0.66, centerLat + width * 0.28]
+  ];
+  return {
+    center: [centerLon, centerLat],
+    polygon,
+    label: `油膜扩散区 · T+${String(Math.round(progress * 24)).padStart(2, '0')}:00`,
+    detail: `模拟扩散范围 ${(2.4 + progress * 12.6).toFixed(1)} km² · 漂移 ${Math.round(progress * 18)} km`
+  };
+}
+
 function activeWrap() { return document.querySelector('.map-wrap'); }
 function activeMode() {
   const wrap = activeWrap();
@@ -72,16 +93,21 @@ function createOpenLayersMap(element, mode) {
   const labelLayer = useTdt ? new ol.layer.Tile({ source: new ol.source.XYZ({ url: tdtUrl(mode === 'satellite' ? 'cia' : 'cva'), subdomains: TDT_SUBDOMAINS }) }) : null;
   const vectorSource = new ol.source.Vector();
   const vectorLayer = new ol.layer.Vector({ source: vectorSource });
-  const points = mapPoints.map(item => {
+  const points = mapPoints.filter(item => item.id !== 'oil').map(item => {
     const feature = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat([item.lon, item.lat])), rescueId: item.id, detail: item.detail });
     feature.setStyle(labelsStyle(ol, item.color, item.label, item.size));
     return feature;
   });
-  const oilArea = new ol.Feature({ geometry: new ol.geom.Polygon([[ol.proj.fromLonLat([119.12, 39.06]), ol.proj.fromLonLat([119.42, 39.05]), ol.proj.fromLonLat([119.58, 38.83]), ol.proj.fromLonLat([119.27, 38.76]), ol.proj.fromLonLat([119.12, 39.06])]]) });
+  const initialDiffusion = diffusionSnapshot(0);
+  const oilArea = new ol.Feature({ geometry: new ol.geom.Polygon([initialDiffusion.polygon.map(point => ol.proj.fromLonLat(point))]) });
   oilArea.setStyle(new ol.style.Style({ fill: new ol.style.Fill({ color: 'rgba(255,165,84,.20)' }), stroke: new ol.style.Stroke({ color: '#ffbc62', width: 2, lineDash: [7, 5] }) }));
+  const oilMarker = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat(initialDiffusion.center)), detail: initialDiffusion.detail });
+  oilMarker.setStyle(labelsStyle(ol, '#ffbc62', initialDiffusion.label, 13));
+  const oilTrail = new ol.Feature({ geometry: new ol.geom.LineString([ol.proj.fromLonLat(initialDiffusion.center), ol.proj.fromLonLat(initialDiffusion.center)]) });
+  oilTrail.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: 'rgba(255,188,98,.82)', width: 2, lineDash: [5, 6] }) }));
   const route = new ol.Feature({ geometry: new ol.geom.LineString([ol.proj.fromLonLat([119.43, 39.29]), ol.proj.fromLonLat([119.25, 39.03]), ol.proj.fromLonLat([119.09, 38.91])]) });
   route.setStyle(new ol.style.Style({ stroke: new ol.style.Stroke({ color: '#53d7ff', width: 2.5, lineDash: [10, 7] }) }));
-  vectorSource.addFeatures([oilArea, route, ...points]);
+  vectorSource.addFeatures([oilArea, oilTrail, oilMarker, route, ...points]);
   const map = new ol.Map({
     target: element, layers: [baseLayer, ...(labelLayer ? [labelLayer] : []), vectorLayer],
     view: new ol.View({ center: ol.proj.fromLonLat(REGION_CENTER), zoom: 7.2, minZoom: 4, maxZoom: 16 }),
@@ -101,9 +127,21 @@ function createOpenLayersMap(element, mode) {
     if (labelLayer) map.removeLayer(labelLayer);
     setReady(mode === 'satellite' ? 'Esri Satellite · 天地图异常自动兜底' : 'OSM 路网 · 天地图异常自动兜底');
   });
+  const setSimulationHour = (hour = 0) => {
+    const snapshot = diffusionSnapshot(hour);
+    oilArea.setGeometry(new ol.geom.Polygon([snapshot.polygon.map(point => ol.proj.fromLonLat(point))]));
+    oilArea.setStyle(new ol.style.Style({ fill: new ol.style.Fill({ color: `rgba(255,165,84,${0.18 + (Number(hour) || 0) / 24 * 0.17})` }), stroke: new ol.style.Stroke({ color: '#ffbc62', width: 2, lineDash: [7, 5] }) }));
+    oilMarker.setGeometry(new ol.geom.Point(ol.proj.fromLonLat(snapshot.center)));
+    oilMarker.set('detail', snapshot.detail);
+    oilMarker.setStyle(labelsStyle(ol, '#ffbc62', snapshot.label, 13 + Math.min(4, (Number(hour) || 0) / 8)));
+    oilTrail.setGeometry(new ol.geom.LineString([ol.proj.fromLonLat(initialDiffusion.center), ol.proj.fromLonLat(snapshot.center)]));
+    map.render();
+  };
   setReady(useTdt ? (mode === 'satellite' ? '天地图卫星 · WMTS 已接入' : '天地图路网 · WMTS 已接入') : (mode === 'satellite' ? 'Esri Satellite · 天地图不可用时自动兜底' : 'OSM 路网 · 天地图不可用时自动兜底'));
+  setSimulationHour(window.rescueSimulationState?.hour || 0);
   requestAnimationFrame(() => map.updateSize());
   return {
+    setSimulationHour,
     zoomIn: () => map.getView().setZoom(Math.min((map.getView().getZoom() || 7) + 1, 16)),
     zoomOut: () => map.getView().setZoom(Math.max((map.getView().getZoom() || 7) - 1, 4)),
     locate: () => map.getView().animate({ center: ol.proj.fromLonLat(REGION_CENTER), zoom: 7.2, duration: 500 }),
@@ -113,7 +151,7 @@ function createOpenLayersMap(element, mode) {
 
 function addCesiumEntities(viewer) {
   const Cesium = window.Cesium;
-  for (const item of mapPoints) {
+  for (const item of mapPoints.filter(item => item.id !== 'oil')) {
     viewer.entities.add({
       id: `rescue-${item.id}`, position: Cesium.Cartesian3.fromDegrees(item.lon, item.lat, 30),
       point: { pixelSize: item.size + 2, color: Cesium.Color.fromCssColorString(item.color), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
@@ -141,13 +179,40 @@ function createCesiumMap(element) {
   viewer.scene.globe.enableLighting = false;
   viewer.camera.setView({ destination: Cesium.Cartesian3.fromDegrees(119.2, 39.2, 1350000), orientation: { heading: 0, pitch: Cesium.Math.toRadians(-62), roll: 0 } });
   addCesiumEntities(viewer);
+  const oilArea = viewer.entities.getById('oil-area');
+  const initialDiffusion = diffusionSnapshot(0);
+  const oilMarker = viewer.entities.add({
+    id: 'sim-oil-marker',
+    position: Cesium.Cartesian3.fromDegrees(initialDiffusion.center[0], initialDiffusion.center[1], 50),
+    point: { pixelSize: 15, color: Cesium.Color.fromCssColorString('#ffbc62'), outlineColor: Cesium.Color.WHITE, outlineWidth: 2, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+    label: { text: initialDiffusion.label, font: '600 12px Noto Sans SC, sans-serif', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 3, style: Cesium.LabelStyle.FILL_AND_OUTLINE, showBackground: true, backgroundColor: Cesium.Color.fromCssColorString('rgba(3,16,27,.82)'), pixelOffset: new Cesium.Cartesian2(11, -11), disableDepthTestDistance: Number.POSITIVE_INFINITY },
+    properties: { detail: initialDiffusion.detail }
+  });
+  const oilTrail = viewer.entities.add({
+    id: 'sim-oil-trail',
+    polyline: { positions: Cesium.Cartesian3.fromDegreesArray([initialDiffusion.center[0], initialDiffusion.center[1], initialDiffusion.center[0], initialDiffusion.center[1]]), width: 3, material: new Cesium.PolylineDashMaterialProperty({ color: Cesium.Color.fromCssColorString('#ffbc62'), dashLength: 14 }) }
+  });
+  const setSimulationHour = (hour = 0) => {
+    const snapshot = diffusionSnapshot(hour);
+    if (oilArea?.polygon) {
+      oilArea.polygon.hierarchy = Cesium.Cartesian3.fromDegreesArray(snapshot.polygon.flat());
+      oilArea.polygon.material = Cesium.Color.fromCssColorString('#ffb862').withAlpha(0.18 + (Number(hour) || 0) / 24 * 0.17);
+    }
+    oilMarker.position = Cesium.Cartesian3.fromDegrees(snapshot.center[0], snapshot.center[1], 50);
+    oilMarker.label.text = snapshot.label;
+    oilMarker.properties.detail = new Cesium.ConstantProperty(snapshot.detail);
+    oilTrail.polyline.positions = Cesium.Cartesian3.fromDegreesArray([initialDiffusion.center[0], initialDiffusion.center[1], snapshot.center[0], snapshot.center[1]]);
+    viewer.scene.requestRender();
+  };
   viewer.screenSpaceEventHandler.setInputAction(click => {
     const picked = viewer.scene.pick(click.position);
     const detail = picked?.id?.properties?.detail?.getValue?.(Cesium.JulianDate.now());
     if (detail) window.rescueToast?.(detail);
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+  setSimulationHour(window.rescueSimulationState?.hour || 0);
   setReady(TIANDITU_KEY ? 'Cesium · 天地图影像 WMTS 已接入' : 'Cesium · OSM 影像兜底');
   return {
+    setSimulationHour,
     zoomIn: () => viewer.camera.zoomIn(180000), zoomOut: () => viewer.camera.zoomOut(180000),
     locate: () => viewer.camera.flyTo({ destination: Cesium.Cartesian3.fromDegrees(119.2, 39.2, 1350000), duration: .7 }),
     destroy: () => viewer.destroy()

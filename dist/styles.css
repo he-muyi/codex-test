@@ -233,6 +233,16 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .field select { appearance: none; padding-left: 11px; }
 .sim-stage { min-height: 450px; }
 .stage-map { height: 390px; }
+.sim-hint { margin-top: 12px; color: #668593; font-size: 11px; line-height: 1.6; }
+.simulation-timeline { padding: 13px 15px 11px; border-top: 1px solid rgba(146,190,211,.09); background: rgba(3, 15, 25, .32); }
+.timeline-head { display:flex; align-items:center; justify-content:space-between; color: #8eacb7; font-size: 11px; }
+.timeline-head strong { color: var(--cyan); font: 600 12px 'IBM Plex Mono', monospace; }
+.sim-range { display:block; width:100%; height: 5px; margin: 13px 0 8px; accent-color: var(--teal); cursor:pointer; }
+.sim-ticks { display:flex; justify-content:space-between; color:#5e7f8d; font: 10px 'IBM Plex Mono', monospace; }
+.sim-progress { height: 3px; margin-top: 10px; overflow:hidden; border-radius:4px; background: rgba(160,200,215,.12); }
+.sim-progress span { display:block; height:100%; border-radius:inherit; background: linear-gradient(90deg, var(--teal), var(--cyan)); transition: width .25s ease; }
+.stage-status { display:flex; align-items:center; gap:8px; min-width:0; }
+.stage-status [data-sim-status] { color:#9bb8c1; font-size:11px; }
 .stage-footer { display:flex; align-items:center; justify-content: space-between; gap: 12px; padding: 12px 15px; border-top: 1px solid var(--line); }
 .stage-status { display:flex; gap: 8px; align-items:center; color: var(--muted); font-size: 12px; }
 .stage-status .status-dot { background: var(--teal); }
