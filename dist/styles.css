@@ -112,6 +112,19 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 .map-panel { min-height: 500px; }
 .map-wrap { position: relative; height: 443px; overflow: hidden; background: #092536; }
+.real-map { position: absolute; inset: 0; z-index: 1; min-height: 100%; background: #0a1c29; }
+.real-map .ol-viewport { border-radius: inherit; }
+.cesium-host { background: #061521; }
+.map-fallback-note { position: absolute; left: 50%; top: 50%; z-index: 3; transform: translate(-50%, -50%); padding: 7px 10px; border: 1px solid rgba(146,190,211,.18); border-radius: 6px; color: #8eaebb; background: rgba(3, 14, 23, .82); font-size: 11px; pointer-events: none; }
+.map-wrap.real-map-ready .map-fallback-note { display: none; }
+.map-wrap.real-map-ready .map-grid, .map-wrap.real-map-ready .map-coast, .map-wrap.real-map-ready .map-lines, .map-wrap.real-map-ready .route, .map-wrap.real-map-ready .map-radar, .map-wrap.real-map-ready .map-label, .map-wrap.real-map-ready .map-point { display: none; }
+.map-wrap.map-fallback .real-map { display: none; }
+.map-wrap.map-fallback .map-fallback-note { display: block; }
+.map-wrap.real-map-ready .map-legend, .map-wrap.real-map-ready .map-controls, .map-wrap.real-map-ready .provider { z-index: 4; }
+.map-wrap.real-map-ready .ol-control { z-index: 5; }
+.map-wrap.real-map-ready .cesium-viewer-bottom { z-index: 5; }
+.map-wrap.real-map-ready .cesium-widget-credits { font-size: 10px; }
+.map-wrap.real-map-ready .cesium-viewer .cesium-widget-credits { color: rgba(221,246,249,.72); }
 .map-wrap.network { background: radial-gradient(circle at 58% 43%, rgba(41, 112, 129, .32), transparent 18%), linear-gradient(145deg, #0b3040, #092433 52%, #071b2b); }
 .map-wrap.satellite { background: radial-gradient(circle at 50% 45%, rgba(120, 139, 72, .32), transparent 28%), linear-gradient(145deg, #334541, #1d3a3d 52%, #10272e); }
 .map-wrap.earth { background: radial-gradient(circle at 48% 48%, rgba(36, 137, 147, .28), transparent 35%), radial-gradient(circle at 50% 49%, #185771 0, #0c3349 32%, #071725 70%); }

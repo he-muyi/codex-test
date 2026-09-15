@@ -77,6 +77,8 @@ function navTemplate() {
 
 function mapTemplate(extraClass = '', stage = false) {
   return `<div class="map-wrap ${state.mapMode} ${extraClass}">
+    <div id="map-canvas" class="real-map" aria-label="真实地理地图"></div>
+    <div class="map-fallback-note">真实底图加载中…</div>
     <div class="map-grid"></div><div class="map-coast"></div>
     <svg class="map-lines" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M6 62 C24 47, 34 70, 50 54 S77 38, 99 52"/><path d="M2 28 C20 38, 22 14, 46 32 S75 62, 98 20"/><path d="M18 92 C37 73, 66 81, 88 67"/></svg>
     <div class="route"></div><div class="route route-two"></div><div class="map-radar"></div>
@@ -162,9 +164,11 @@ function shell() {
 }
 
 function render() {
+  window.rescueMapApi?.destroy?.();
   app.innerHTML = shell();
   const time = document.querySelector('#live-time');
   if (time) time.textContent = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-');
+  window.dispatchEvent(new CustomEvent('rescue:rendered'));
 }
 
 function toast(message) {
@@ -173,6 +177,8 @@ function toast(message) {
   el.textContent = message; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2600);
 }
+
+window.rescueToast = toast;
 
 function openModal(type) {
   const backdrop = document.querySelector('#modal-backdrop');
@@ -215,6 +221,9 @@ document.addEventListener('click', (event) => {
   if (action === 'show-notice') { toast('有 2 条新的高风险事件通知'); }
   if (action === 'manage-users') { toast('用户权限管理已打开'); }
   if (action === 'stage-reset') { toast('已重置到推演初始时刻'); }
+  if (action === 'zoom-in') { window.rescueMapApi?.zoomIn?.(); }
+  if (action === 'zoom-out') { window.rescueMapApi?.zoomOut?.(); }
+  if (action === 'locate') { window.rescueMapApi?.locate?.(); }
 });
 
 document.addEventListener('input', (event) => {
