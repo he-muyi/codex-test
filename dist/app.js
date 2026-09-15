@@ -56,9 +56,24 @@ const navGroups = [
   ]}
 ];
 
+const simulationProfiles = {
+  oil: {
+    label: '船舶碰撞 · 溢油扩散', duration: 24, coordinate: '39.62°N, 119.07°E',
+    parameters: [['燃油泄漏量（吨）', '80'], ['风力 / 风向', '6 级 · 东北风'], ['洋流速度', '0.8 节 · 向东南']]
+  },
+  storm: {
+    label: '风暴潮淹没影响', duration: 18, coordinate: '38.95°N, 118.72°E',
+    parameters: [['预警潮位（米）', '2.8'], ['风暴风力 / 风向', '10 级 · 东南风'], ['有效浪高（米）', '4.2']]
+  },
+  person: {
+    label: '人员落水 · 漂移搜救', duration: 12, coordinate: '39.15°N, 119.26°E',
+    parameters: [['落水人数（人）', '1'], ['表层流速 / 方向', '0.6 节 · 向东南'], ['初始搜索半径（公里）', '1.2']]
+  }
+};
+
 const state = {
   view: 'dashboard', mapMode: 'network', search: '', acknowledged: [], dispatches: 12,
-  simulation: { hour: 0, duration: 24, running: false, completed: false },
+  simulation: { scenario: 'oil', hour: 0, duration: 24, running: false, completed: false },
   alerts: [
     { id: 1, level: 'high', name: '疑似船舶碰撞', meta: '渤海湾 · 39.62°N, 119.07°E', time: '09:42', kind: '船舶险情' },
     { id: 2, level: 'mid', name: '溢油漂移预警', meta: '黄海北部 · 影响面积 2.4 km²', time: '09:18', kind: '海上污染' },
@@ -77,8 +92,12 @@ window.rescueSimulationState = state.simulation;
 let simulationTimer = null;
 
 function formatSimulationTime(hour) {
-  const safeHour = Math.max(0, Math.min(24, Number(hour) || 0));
+  const safeHour = Math.max(0, Number(hour) || 0);
   return `T + ${String(Math.floor(safeHour)).padStart(2, '0')}:00`;
+}
+
+function currentSimulationProfile() {
+  return simulationProfiles[state.simulation.scenario] || simulationProfiles.oil;
 }
 
 function simulationStatus() {
@@ -94,7 +113,7 @@ function updateSimulationUi() {
   document.querySelectorAll('[data-sim-clock]').forEach(el => { el.textContent = formatSimulationTime(sim.hour); });
   document.querySelectorAll('[data-sim-status]').forEach(el => { el.textContent = simulationStatus(); });
   document.querySelectorAll('[data-sim-progress]').forEach(el => { el.style.width = `${progress}%`; });
-  document.querySelectorAll('[data-sim-range]').forEach(el => { el.value = String(sim.hour); });
+  document.querySelectorAll('[data-sim-range]').forEach(el => { el.max = String(sim.duration); el.value = String(sim.hour); });
   document.querySelectorAll('[data-action="start-sim"]').forEach(el => {
     el.innerHTML = `${icon(sim.running ? 'pause' : 'play')} ${sim.running ? '暂停推演' : sim.completed ? '重新开始' : '启动推演'}`;
     el.classList.toggle('running', sim.running);
@@ -119,6 +138,19 @@ function setSimulationHour(hour, stop = true) {
   state.simulation.completed = state.simulation.hour >= state.simulation.duration;
   syncSimulationMap();
   updateSimulationUi();
+}
+
+function setSimulationScenario(scenario) {
+  const profile = simulationProfiles[scenario] || simulationProfiles.oil;
+  stopSimulationTimer();
+  state.simulation.scenario = simulationProfiles[scenario] ? scenario : 'oil';
+  state.simulation.duration = profile.duration;
+  state.simulation.hour = 0;
+  state.simulation.running = false;
+  state.simulation.completed = false;
+  window.rescueSimulationState = state.simulation;
+  render();
+  toast(`已切换至${profile.label}，按对应模型重新生成预测`);
 }
 
 function startSimulation() {
@@ -148,7 +180,7 @@ function startSimulation() {
       toast('推演完成 · 已生成 24 小时扩散预测');
     }
   }, 1000);
-  toast('仿真任务已启动，地图将按时间线模拟油膜扩散');
+  toast(`仿真任务已启动，地图将按时间线模拟${currentSimulationProfile().label.split(' · ')[1] || '漂移过程'}`);
 }
 
 function navTemplate() {
@@ -220,8 +252,12 @@ function plansView() {
 
 function simulationView() {
   const sim = state.simulation;
+  const profile = currentSimulationProfile();
   const progress = Math.round((sim.hour / sim.duration) * 100);
-  return `<section class="view active"><div class="dashboard-head"><div><div class="eyebrow">SCENARIO SIMULATION / 06</div><h1 class="view-heading">推演仿真</h1><p class="view-description">配置事故参数，按时间线模拟油膜扩散、漂移方向与应急资源响应。</p></div><div class="head-actions"><span class="tag green">推演引擎在线</span><button class="btn primary" data-action="start-sim">${icon(sim.running ? 'pause' : 'play')} ${sim.running ? '暂停推演' : sim.completed ? '重新开始' : '启动推演'}</button></div></div><div class="sim-layout"><div class="panel form-panel"><h3>事故参数配置</h3><div class="field"><label>推演场景</label><select><option>船舶碰撞 · 溢油扩散</option><option>风暴潮淹没影响</option><option>人员落水 · 漂移搜救</option></select></div><div class="field"><label>事发坐标</label><input value="39.62°N, 119.07°E" /></div><div class="field"><label>燃油泄漏量（吨）</label><input value="80" /></div><div class="field"><label>风力 / 风向</label><input value="6 级 · 东北风" /></div><div class="field"><label>洋流速度</label><input value="0.8 节 · 向东南" /></div><div class="field"><label>推演时长</label><select><option>24 小时</option><option>48 小时</option><option>72 小时</option></select></div><button class="btn primary" style="width:100%;margin-top:4px" data-action="start-sim">${icon(sim.running ? 'pause' : 'play')} ${sim.running ? '暂停推演' : sim.completed ? '重新开始' : '生成扩散预测'}</button><div class="sim-hint">点击启动后，每秒推进 1 小时；也可拖动地图下方时间线回放。</div></div><div class="panel sim-stage"><div class="panel-header"><div class="panel-title">扩散时序预览</div><div class="panel-tools"><span class="tag" data-sim-clock>${formatSimulationTime(sim.hour)}</span><button class="text-btn" data-action="stage-reset">${icon('refresh')} 重置</button></div></div>${mapTemplate('stage-map', true)}<div class="simulation-timeline"><div class="timeline-head"><span>推演时间线</span><strong data-sim-clock>${formatSimulationTime(sim.hour)}</strong></div><input class="sim-range" data-sim-range type="range" min="0" max="24" step="1" value="${sim.hour}" aria-label="推演时间线" /><div class="sim-ticks"><span>T+00</span><span>T+06</span><span>T+12</span><span>T+18</span><span>T+24</span></div><div class="sim-progress"><span data-sim-progress style="width:${progress}%"></span></div></div><div class="stage-footer"><div class="stage-status"><i class="status-dot"></i><span data-sim-status>${simulationStatus()}</span></div><div><button class="btn" data-action="export-report">${icon('download')} 评估报告</button></div></div></div></div></section>`;
+  const ticks = [0, Math.round(profile.duration * .25), Math.round(profile.duration * .5), Math.round(profile.duration * .75), profile.duration];
+  const options = Object.entries(simulationProfiles).map(([id, item]) => `<option value="${id}" ${id === sim.scenario ? 'selected' : ''}>${item.label}</option>`).join('');
+  const parameterFields = profile.parameters.map(([label, value]) => `<div class="field"><label>${label}</label><input value="${value}" /></div>`).join('');
+  return `<section class="view active"><div class="dashboard-head"><div><div class="eyebrow">SCENARIO SIMULATION / 06</div><h1 class="view-heading">推演仿真</h1><p class="view-description">根据场景选择对应的扩散、淹没或漂移模型，按时间线回放风险范围变化。</p></div><div class="head-actions"><span class="tag green">推演引擎在线</span><button class="btn primary" data-action="start-sim">${icon(sim.running ? 'pause' : 'play')} ${sim.running ? '暂停推演' : sim.completed ? '重新开始' : '启动推演'}</button></div></div><div class="sim-layout"><div class="panel form-panel"><h3>事故参数配置</h3><div class="field"><label>推演场景</label><select data-sim-scenario>${options}</select></div><div class="field"><label>事发坐标</label><input value="${profile.coordinate}" /></div>${parameterFields}<div class="field"><label>推演时长</label><select data-sim-duration>${[12, 18, 24, 36].map(value => `<option value="${value}" ${value === sim.duration ? 'selected' : ''}>${value} 小时</option>`).join('')}</select></div><button class="btn primary" style="width:100%;margin-top:4px" data-action="start-sim">${icon(sim.running ? 'pause' : 'play')} ${sim.running ? '暂停推演' : sim.completed ? '重新开始' : '生成扩散预测'}</button><div class="sim-hint">溢油看扩散面积，风暴潮看岸线淹没，人员落水看漂移搜救区；每秒推进 1 小时。</div></div><div class="panel sim-stage"><div class="panel-header"><div class="panel-title">${profile.label} · 时序预览</div><div class="panel-tools"><span class="tag" data-sim-clock>${formatSimulationTime(sim.hour)}</span><button class="text-btn" data-action="stage-reset">${icon('refresh')} 重置</button></div></div>${mapTemplate('stage-map', true)}<div class="simulation-timeline"><div class="timeline-head"><span>推演时间线</span><strong data-sim-clock>${formatSimulationTime(sim.hour)}</strong></div><input class="sim-range" data-sim-range type="range" min="0" max="${sim.duration}" step="1" value="${sim.hour}" aria-label="推演时间线" /><div class="sim-ticks">${ticks.map(value => `<span>T+${String(value).padStart(2, '0')}</span>`).join('')}</div><div class="sim-progress"><span data-sim-progress style="width:${progress}%"></span></div></div><div class="stage-footer"><div class="stage-status"><i class="status-dot"></i><span data-sim-status>${simulationStatus()}</span></div><div><button class="btn" data-action="export-report">${icon('download')} 评估报告</button></div></div></div></div></section>`;
 }
 
 function dispatchView() {
@@ -306,6 +342,21 @@ document.addEventListener('click', (event) => {
   if (action === 'zoom-in') { window.rescueMapApi?.zoomIn?.(); }
   if (action === 'zoom-out') { window.rescueMapApi?.zoomOut?.(); }
   if (action === 'locate') { window.rescueMapApi?.locate?.(); }
+});
+
+document.addEventListener('change', (event) => {
+  const scenarioTarget = event.target.closest('[data-sim-scenario]');
+  if (scenarioTarget) { setSimulationScenario(scenarioTarget.value); return; }
+  const durationTarget = event.target.closest('[data-sim-duration]');
+  if (durationTarget) {
+    stopSimulationTimer();
+    state.simulation.duration = Math.max(1, Number(durationTarget.value) || 24);
+    state.simulation.hour = Math.min(state.simulation.hour, state.simulation.duration);
+    state.simulation.running = false;
+    state.simulation.completed = state.simulation.hour >= state.simulation.duration;
+    render();
+    toast(`推演时长已调整为 ${state.simulation.duration} 小时`);
+  }
 });
 
 document.addEventListener('input', (event) => {
