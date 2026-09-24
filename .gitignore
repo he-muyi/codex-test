@@ -1,0 +1,34 @@
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local Sites tooling and staging directories
+.sites-runtime/
+.site-stage/
+
+# Dependencies, caches, logs, and test output
+node_modules/
+.npm/
+.cache/
+coverage/
+logs/
+*.log
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Temporary archives and local exports
+*.tar
+*.tar.gz
+*.zip
+*.tmp
+*.temp
+
+# Keep dist/ tracked: it is the static directory deployed by Sites.
